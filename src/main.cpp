@@ -50,7 +50,8 @@ int main(int argc, char* argv[])
     
     // Initialize utility class
     RobotUtility robot_utlity;
-
+    
+    // Generating data
     for(int i=0; i<x_vectors.size(); i++){
         x = x_vectors[i];  // new x
         y = amplitude * std::sin(x) + y_offset; // new y
@@ -92,7 +93,18 @@ int main(int argc, char* argv[])
         robot_position.emplace_back(robot_vector(x, y, theta_radians));  // Save the robot positions
         timestamp_data.emplace_back(time_stamp_sec);     // Save the timestamps
         lidar_data.emplace_back(lidar(lidar_x, lidar_y));
-        radar_data.emplace_back(radar(range, azimuth_radians, velocity)) ;
+        radar_data.emplace_back(radar(range, azimuth_radians, velocity));
+
+
+        // Main EKF workflow
+        // for(int i=0;i < timestamp_data.size(); i++){
+
+
+        // }
+
+
+
+
 
         // LOG(INFO) << x  << "  " << y << "  "<< theta_radians  * 180/M_PI << " degrees \n";
     }
@@ -106,4 +118,79 @@ int main(int argc, char* argv[])
     std::chrono::duration<double> duration = end - start;
 
     LOG(INFO) << "Program took " << duration.count() << " seconds to complete.";
+}
+
+
+ EKF::EKF() {
+        dt = 0.1;  
+
+        // Initialize state vector (x)
+        x = Eigen::VectorXd(5);
+        x << 1, 1, 1, 1, 1;
+
+        // Initialize state transition matrix (F)
+        F = Eigen::MatrixXd(5, 5);
+        F << 1, 0, 0, 1, 0,
+             0, 1, 0, 0, 1,
+             0, 0, 1, 0, 0,
+             0, 0, 0, 1, 0,
+             0, 0, 0, 0, 1;
+
+        // Initialize covariance matrix (P)
+        P = Eigen::MatrixXd(5, 5);
+        P << 1, 0, 0, 0, 0,
+             0, 1, 0, 0, 0,
+             0, 0, 1, 0, 0,
+             0, 0, 0, 10, 0,
+             0, 0, 0, 0, 10;
+
+        // Initialize process noise covariance (Q)
+        Q = Eigen::MatrixXd(5, 5);
+        Q << 1, 0, 0, 0, 0,
+             0, 1, 0, 0, 0,
+             0, 0, 1, 0, 0,
+             0, 0, 0, 1, 0,
+             0, 0, 0, 0, 1;
+        
+
+        // Initialize lidar noise matrix (R_lidar)
+        R_lidar = Eigen::MatrixXd(2, 2);
+        R_lidar << 1, 0,
+                   0, 1;
+
+        // Initialize lidar noise matrix (R_radar)
+        R_radar = Eigen::MatrixXd(3, 3);
+        R_radar <<  1, 0, 0, 
+                    0, 0.1, 0, 
+                    0, 0,  1;
+
+        // Initialize measurement matrices for lidar and radar
+        H_lidar = Eigen::MatrixXd(2, 5);
+        H_lidar << 1, 0, 0, 0, 0,
+                   0, 1, 0, 0, 0;
+
+        H_radar = Eigen::MatrixXd(3, 5);
+        H_radar << 1, 0, 0, 0, 0,
+                   0, 1, 0, 0, 0,
+                   0, 0, 1, 0, 0;
+
+        P = P * p_noise;
+        Q = Q * q_noise;
+        R_lidar = R_lidar * lidar_noise;
+        R_radar = R_radar * radar_noise;
+ }
+
+EKF::~EKF(){}
+
+void EKF::calc_jacobian(){
+
+}
+
+void EKF::predict() {
+    x = F * x;  // State prediction
+    P = F * P * F.transpose() + Q;  // Covariance prediction
+}
+
+void EKF::update() {
+
 }
