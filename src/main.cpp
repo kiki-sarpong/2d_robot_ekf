@@ -7,7 +7,6 @@
 #include "visualizatiion.h"
 #include "EKF.h"
 
-
 int main(int argc, char* argv[])
 {
     // Start timer
@@ -25,14 +24,13 @@ int main(int argc, char* argv[])
     int x_max = 50;   // Max X distance
     int y_max = 25 + amplitude; // Max Y distance
     
-
     LOG(INFO) << "Number of robot positions is " << num_of_positions;
 
-    // Set noise values 
+    // Set noise values
     double lidar_noise = 5.0;
     double range_noise = 3.0, azimuth_noise = 0.5, velocity_noise = 2.0;
     double timestamp_noise = 10.0; // High variance in timestamps
-
+    // 
     std::vector<lidar> lidar_data;
     std::vector<radar> radar_data;
     std::vector<robot_vector> robot_position;
@@ -86,7 +84,7 @@ int main(int argc, char* argv[])
 
             // Convert to degrees
             // std:: cout << theta_radians * 180/M_PI<< "  \n";   
-            std::cout << azimuth_radians << "\n";
+            // std::cout << azimuth_radians << "\n";
         }
         
         // Save data
@@ -96,19 +94,29 @@ int main(int argc, char* argv[])
         radar_data.emplace_back(radar(range, azimuth_radians, velocity));
 
 
-        // Main EKF workflow
-        // for(int i=0;i < timestamp_data.size(); i++){
+        // Main EKF pipeline
+        EKF ekf_model;  // Create instance of EKF model
+        ekf_model.x << robot_position[0].x, robot_position[0].y, robot_position[0].theta_radians, 0, 0, 0;
+        double dt = timestamp_data[1] - timestamp_data[0];
 
+        for(int i=1; i < timestamp_data.size(); i++){
+            if (i > 1){
+                dt = timestamp_data[i] - ekf_model.timestamp_;
+            }
+            ekf_model.predict();
+            // Lidar update
+            ekf_model.z_lidar << lidar_data[i].x, lidar_data[i].y;
+            // Radar update
+            ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].velocity;
 
-        // }
+            ekf_model.update("lidar");
 
+            ekf_model.timestamp_ = timestamp_data[i];
+        }
 
-
-
-
+        // Convert to radians 
         // LOG(INFO) << x  << "  " << y << "  "<< theta_radians  * 180/M_PI << " degrees \n";
     }
-
 
     // Visualize viz(x_max, y_max);
     // viz.display_graph(x, amplitude, y_offset, false);
@@ -118,79 +126,4 @@ int main(int argc, char* argv[])
     std::chrono::duration<double> duration = end - start;
 
     LOG(INFO) << "Program took " << duration.count() << " seconds to complete.";
-}
-
-
- EKF::EKF() {
-        dt = 0.1;  
-
-        // Initialize state vector (x)
-        x = Eigen::VectorXd(5);
-        x << 1, 1, 1, 1, 1;
-
-        // Initialize state transition matrix (F)
-        F = Eigen::MatrixXd(5, 5);
-        F << 1, 0, 0, 1, 0,
-             0, 1, 0, 0, 1,
-             0, 0, 1, 0, 0,
-             0, 0, 0, 1, 0,
-             0, 0, 0, 0, 1;
-
-        // Initialize covariance matrix (P)
-        P = Eigen::MatrixXd(5, 5);
-        P << 1, 0, 0, 0, 0,
-             0, 1, 0, 0, 0,
-             0, 0, 1, 0, 0,
-             0, 0, 0, 10, 0,
-             0, 0, 0, 0, 10;
-
-        // Initialize process noise covariance (Q)
-        Q = Eigen::MatrixXd(5, 5);
-        Q << 1, 0, 0, 0, 0,
-             0, 1, 0, 0, 0,
-             0, 0, 1, 0, 0,
-             0, 0, 0, 1, 0,
-             0, 0, 0, 0, 1;
-        
-
-        // Initialize lidar noise matrix (R_lidar)
-        R_lidar = Eigen::MatrixXd(2, 2);
-        R_lidar << 1, 0,
-                   0, 1;
-
-        // Initialize lidar noise matrix (R_radar)
-        R_radar = Eigen::MatrixXd(3, 3);
-        R_radar <<  1, 0, 0, 
-                    0, 0.1, 0, 
-                    0, 0,  1;
-
-        // Initialize measurement matrices for lidar and radar
-        H_lidar = Eigen::MatrixXd(2, 5);
-        H_lidar << 1, 0, 0, 0, 0,
-                   0, 1, 0, 0, 0;
-
-        H_radar = Eigen::MatrixXd(3, 5);
-        H_radar << 1, 0, 0, 0, 0,
-                   0, 1, 0, 0, 0,
-                   0, 0, 1, 0, 0;
-
-        P = P * p_noise;
-        Q = Q * q_noise;
-        R_lidar = R_lidar * lidar_noise;
-        R_radar = R_radar * radar_noise;
- }
-
-EKF::~EKF(){}
-
-void EKF::calc_jacobian(){
-
-}
-
-void EKF::predict() {
-    x = F * x;  // State prediction
-    P = F * P * F.transpose() + Q;  // Covariance prediction
-}
-
-void EKF::update() {
-
 }
