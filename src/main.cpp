@@ -86,37 +86,51 @@ int main(int argc, char* argv[])
             // std:: cout << theta_radians * 180/M_PI<< "  \n";   
             // std::cout << azimuth_radians << "\n";
         }
-        
         // Save data
         robot_position.emplace_back(robot_vector(x, y, theta_radians));  // Save the robot positions
         timestamp_data.emplace_back(time_stamp_sec);     // Save the timestamps
         lidar_data.emplace_back(lidar(lidar_x, lidar_y));
         radar_data.emplace_back(radar(range, azimuth_radians, velocity));
 
-
-        // Main EKF pipeline
-        EKF ekf_model;  // Create instance of EKF model
-        ekf_model.x << robot_position[0].x, robot_position[0].y, robot_position[0].theta_radians, 0, 0, 0;
-        double dt = timestamp_data[1] - timestamp_data[0];
-
-        for(int i=1; i < timestamp_data.size(); i++){
-            if (i > 1){
-                dt = timestamp_data[i] - ekf_model.timestamp_;
-            }
-            ekf_model.predict();
-            // Lidar update
-            ekf_model.z_lidar << lidar_data[i].x, lidar_data[i].y;
-            // Radar update
-            ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].velocity;
-
-            ekf_model.update("lidar");
-
-            ekf_model.timestamp_ = timestamp_data[i];
-        }
-
         // Convert to radians 
         // LOG(INFO) << x  << "  " << y << "  "<< theta_radians  * 180/M_PI << " degrees \n";
     }
+
+
+    // Main EKF pipeline
+    LOG(INFO) << "Starting EKF ..... \n";
+    EKF ekf_model;  // Create instance of EKF model
+    ekf_model.x << robot_position[0].x, robot_position[0].y, robot_position[0].theta_radians, 0, 0, 0;
+    // double dt = timestamp_data[1] - timestamp_data[0];
+    double dt = 0.0;
+    // Initialize RMSE variables
+    Eigen::VectorXd rmse(2);
+    Eigen::VectorXd residuals(2);
+
+    for(int i=0; i < timestamp_data.size(); i++){
+        if (i > 0){
+            dt = timestamp_data[i] - ekf_model.timestamp_;
+        }
+        
+        // Lidar update
+        ekf_model.z_lidar << lidar_data[i].x, lidar_data[i].y;
+        // Radar update
+        ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].velocity;
+        
+        ekf_model.predict();
+        ekf_model.update("lidar");
+        ekf_model.timestamp_ = timestamp_data[i];
+
+        // Calculate RMSE | Ground truth - predictions
+        residuals << robot_position[i].x - ekf_model.x(0), robot_position[i].y - ekf_model.x(1); 
+        // std::cout << residuals << "\n"; 
+        residuals = rmse.array().square();
+        rmse += residuals;
+    }
+    // Calculate RMSE
+    rmse /= robot_position.size();
+    rmse = rmse.array().sqrt();
+    LOG(INFO) << "RMSE for EKF is: " << rmse(0) << " " << rmse(1);
 
     // Visualize viz(x_max, y_max);
     // viz.display_graph(x, amplitude, y_offset, false);

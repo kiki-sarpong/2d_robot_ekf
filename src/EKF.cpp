@@ -1,3 +1,4 @@
+#include <iostream>
 #include "EKF.h"
 #include <glog/logging.h>
 
@@ -58,6 +59,8 @@ EKF::EKF() {
         z_lidar = Eigen::VectorXd(2);
         z_radar = Eigen::VectorXd(3);;
 
+        identity = Eigen::MatrixXd::Identity(6, 6); 
+
         P = P * p_noise;
         Q = Q * q_noise;
         R_lidar = R_lidar * lidar_noise;
@@ -110,9 +113,8 @@ void EKF::update(std::string sensor) {
         P = (Eigen::MatrixXd::Identity(4, 4) - K * H_radar) * P;
         return;
     }
-
     // Else run lidar
     K = P * H_lidar.transpose() * (H_lidar * P * H_lidar.transpose() + R_lidar).inverse();
     x = x + K * (z_lidar - H_lidar * x);
-    P = (Eigen::MatrixXd::Identity(4, 4) - K * H_lidar) * P;
+    P = (identity - K * H_lidar) * P;
 }

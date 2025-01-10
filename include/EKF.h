@@ -38,12 +38,11 @@ struct robot_vector {
 /* Class for robot utilites */
 class RobotUtility {
     public:
+
         double randomGaussian(double mean, double std);
         double distance(double x1, double y1, double x2, double y2);
 
 };
-
-
 
 /*
 Class for Extended kalman filter 
@@ -71,6 +70,7 @@ class EKF {
         Eigen::MatrixXd H_lidar;        // Measurement update matrix for lidar
         Eigen::MatrixXd H_radar;        // Measurement update matrix for radar
         Eigen::MatrixXd K;          // Kalman gain
+        Eigen::MatrixXd identity;
 
         float radar_noise = 0.5f;
         float lidar_noise = 0.08f;
