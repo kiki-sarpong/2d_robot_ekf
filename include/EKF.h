@@ -38,7 +38,6 @@ struct robot_vector {
 /* Class for robot utilites */
 class RobotUtility {
     public:
-
         double randomGaussian(double mean, double std);
         double distance(double x1, double y1, double x2, double y2);
 

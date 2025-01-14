@@ -22,9 +22,9 @@ EKF::EKF() {
         P << 1, 0, 0, 0, 0, 0,
              0, 1, 0, 0, 0, 0,
              0, 0, 1, 0, 0, 0,
-             0, 0, 0, 10, 0, 0,
-             0, 0, 0, 0, 10, 0,
-             0, 0, 0, 0, 0, 10;
+             0, 0, 0, 1, 0, 0,
+             0, 0, 0, 0, 1, 0,
+             0, 0, 0, 0, 0, 1;
 
         // Initialize process noise covariance (Q)
         Q = Eigen::MatrixXd(6, 6);
@@ -110,7 +110,7 @@ void EKF::update(std::string sensor) {
         EKF::calc_jacobian(sensor);  // Calculate jacobian for radar
         K = P * H_radar.transpose() * (H_radar * P * H_radar.transpose() + R_radar).inverse();
         x = x + K * (z_radar - H_radar * x);
-        P = (Eigen::MatrixXd::Identity(4, 4) - K * H_radar) * P;
+        P = (identity - K * H_radar) * P;
         return;
     }
     // Else run lidar
