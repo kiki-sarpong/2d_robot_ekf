@@ -9,9 +9,11 @@ class DisplayOutput:
     def __init__(self) -> None:
         ground_truth_filepath = ''.join([os.getcwd(), "/ground_truth.txt"])
         ekf_output_filepath = ''.join([os.getcwd(), "/ekf_output.txt"])
+        lidar_output_filepath = ''.join([os.getcwd(), "/lidar_output.txt"])
         number_of_points = 121
         self.ekf_points = self.read_file(np.zeros((number_of_points, 6)), ekf_output_filepath)
-        self.gt_points = self.read_file(np.zeros((number_of_points, 3)), ground_truth_filepath)
+        self.gt_points = self.read_file(np.zeros((number_of_points, 4)), ground_truth_filepath)
+        self.lidar_points = self.read_file(np.zeros((number_of_points, 2)), lidar_output_filepath)
 
     def read_file(self, points:np.ndarray, file_path:str) -> np.ndarray:
         """
@@ -28,12 +30,15 @@ class DisplayOutput:
         This method displays the data with matplotlib
         """
         _, axs= plt.subplots(2, 2, figsize=(12, 8))
+        # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+
         axs[0, 0].set_ylabel("Y points")
         axs[0, 0].set_xlabel("X points")
-        axs[0, 0].set_title("Extended Kalman Filter")
+        axs[0, 0].set_title("Extended Kalman Filter X/Y Comparison (Ground Truth vs EKF)")
         # X and Y postition comparision
         axs[0, 0].plot(self.gt_points[:,0], self.gt_points[:,1], label="Ground truth x/y points")
         axs[0, 0].plot(self.ekf_points[:,0], self.ekf_points[:,1], label="EKF x/y points")
+        axs[0, 0].plot(self.lidar_points[:,0], self.lidar_points[:,1], "o", label="lidar points", markersize=2)
         axs[0, 0].legend(fontsize="small")
 
         # Orientation plots
@@ -46,9 +51,10 @@ class DisplayOutput:
 
         # Velocity 
         axs[1, 0].set_xlabel("Time Steps")
-        axs[1, 0].set_ylabel("Velocity")
+        axs[1, 0].set_ylabel("Velocity (m/s)")
         axs[1, 0].set_title("EKF velocity")
         velocity = np.linalg.norm([self.ekf_points[:,3], self.ekf_points[:,4]], axis=0)
+        axs[1, 0].plot(self.gt_points[:,3], label="Ground truth velocity")
         axs[1, 0].plot(velocity, label="EKF velocity")
         axs[1, 0].legend(fontsize="small")
 

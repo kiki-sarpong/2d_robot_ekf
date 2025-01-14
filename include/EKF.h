@@ -29,10 +29,11 @@ struct robot_vector {
     double x;
     double y;
     double theta_radians;  // Angle in radians
+    double velocity;
 
     // Constructor to initialize the vector
-    robot_vector(double x_val, double y_val, double theta_val)
-        : x(x_val), y(y_val), theta_radians(theta_val) {}
+    robot_vector(double x_val, double y_val, double theta_val, double velocity_)
+        : x(x_val), y(y_val), theta_radians(theta_val), velocity(velocity_) {}
 };
 
 /* Class for robot utilites */

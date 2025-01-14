@@ -3,9 +3,9 @@
 #include <vector>
 #include <chrono>
 #include <glog/logging.h>
-
 #include "visualizatiion.h"
 #include "EKF.h"
+
 
 int main(int argc, char* argv[])
 {
@@ -27,9 +27,9 @@ int main(int argc, char* argv[])
     LOG(INFO) << "Number of robot positions is " << num_of_positions;
 
     // Set noise values
-    double lidar_noise = 5.0;
-    double range_noise = 3.0, azimuth_noise = 0.5, velocity_noise = 2.0;
-    double timestamp_noise = 10.0; // High variance in timestamps
+    double lidar_noise = 0.4;
+    double range_noise = 0.3, azimuth_noise = 0.5, velocity_noise = 0.4;
+    double timestamp_noise = 5.0; // High variance in timestamps
     // 
     std::vector<lidar> lidar_data;
     std::vector<radar> radar_data;
@@ -40,8 +40,8 @@ int main(int argc, char* argv[])
     sciplot::Vec x_vectors = sciplot::linspace(start_point, x_max, num_of_positions);
     
     // Initialize robot vector values
-    double theta_radians = M_PI, y = 0.0, x = 0.0;
-    double azimuth_radians = 0.0, range = 0.0, velocity = 0.0;
+    double theta_radians = 0.0, y = 0.0, x = 0.0, velocity = 0.0;
+    double azimuth_radians = 0.0, range = 0.0, r_velocity = 0.0;
     
     // Initialize the update variable, set the constant time plus noise variable for the timestamp
     double time_stamp_sec = 0.0, time_const_sec = 10.0;
@@ -80,23 +80,22 @@ int main(int argc, char* argv[])
             azimuth_radians = theta_radians + robot_utlity.randomGaussian(0, azimuth_noise);
             azimuth_radians = std::fmod(azimuth_radians, (2*M_PI));  // azimuth is in radians and should be b/n 0 - 2PI
             // Calculate velocity
-            velocity = distance/time_stamp_sec + robot_utlity.randomGaussian(velocity_noise, velocity_noise/4);
-            
-            // Convert to degrees
-            // std:: cout << theta_radians * 180/M_PI<< "  \n";   
-            // std::cout << theta_radians << "\n";
+            velocity = distance/time_stamp_sec;
+            // Calculate radar velocity
+            r_velocity = velocity + robot_utlity.randomGaussian(velocity_noise, velocity_noise/4);
         }
         // Save data
-        robot_position.emplace_back(robot_vector(x, y, theta_radians));  // Save the robot positions
+        robot_position.emplace_back(robot_vector(x, y, theta_radians, velocity));  // Save the robot positions
         timestamp_data.emplace_back(time_stamp_sec);     // Save the timestamps
         lidar_data.emplace_back(lidar(lidar_x, lidar_y));
-        radar_data.emplace_back(radar(range, azimuth_radians, velocity));
+        radar_data.emplace_back(radar(range, azimuth_radians, r_velocity));
     }
 
 
     // Main EKF pipeline
     LOG(INFO) << "Starting EKF ..... \n";
     EKF ekf_model;  // Create instance of EKF model
+    // Initialize state values
     ekf_model.x << robot_position[0].x, robot_position[0].y, robot_position[0].theta_radians, 0, 0, 0;
     double dt = 0.0;
     // Initialize RMSE variables
@@ -104,9 +103,10 @@ int main(int argc, char* argv[])
     Eigen::VectorXd residuals(2);
 
     // Open file to write output
-    std::ofstream gt_file, ekf_file;
+    std::ofstream gt_file, ekf_file, lidar_file;
     gt_file.open("../python/ground_truth.txt");
     ekf_file.open("../python/ekf_output.txt");
+    lidar_file.open("../python/lidar_output.txt");
     LOG(INFO) << "ground_truth.txt and ekf_output.txt opened.";
 
     for(int i=0; i < timestamp_data.size(); i++){
@@ -118,11 +118,11 @@ int main(int argc, char* argv[])
         ekf_model.z_lidar << lidar_data[i].x, lidar_data[i].y;
         // Radar update
         ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].velocity;
-        ekf_model.dt = dt;  // Assign change in time
+        ekf_model.dt = dt;  // Assign the change in time
         ekf_model.predict();
         // "lidar" or "radar"
         ekf_model.update("lidar");
-        // ekf_model.update("radar")
+        // ekf_model.update("radar");
         ekf_model.timestamp_ = timestamp_data[i];
 
         // Calculate RMSE | Ground truth - predictions
@@ -131,9 +131,16 @@ int main(int argc, char* argv[])
         rmse += residuals;
 
         // Write to file
-        gt_file << robot_position[i].x << " " << robot_position[i].y << " " << robot_position[i].theta_radians << "\n";
+        gt_file << robot_position[i].x << " " << robot_position[i].y << " " << robot_position[i].theta_radians << \
+                " " << robot_position[i].velocity << "\n";
+        
+        // ekf_file << lidar_data[i].x << " " << lidar_data[i].y << " "  << ekf_model.x(2) << " " << ekf_model.x(3) \
+        //         << " "  << ekf_model.x(4) << " "  << ekf_model.x(5) << "\n";
+        
         ekf_file << ekf_model.x(0) << " " << ekf_model.x(1) << " "  << ekf_model.x(2) << " " << ekf_model.x(3) \
                 << " "  << ekf_model.x(4) << " "  << ekf_model.x(5) << "\n";
+
+        lidar_file << lidar_data[i].x << " " << lidar_data[i].y << "\n";  
     }
     // Calculate RMSE
     rmse /= robot_position.size();
@@ -143,7 +150,9 @@ int main(int argc, char* argv[])
     // Close file
     gt_file.close();
     ekf_file.close();
+    lidar_file.close();
     LOG(INFO) << "Files closed successfully";
+
     // Visualize viz(x_max, y_max);
     // viz.display_graph(x, amplitude, y_offset, false);
 
