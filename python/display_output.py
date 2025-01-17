@@ -12,7 +12,7 @@ class DisplayOutput:
         lidar_output_filepath = ''.join([os.getcwd(), "/lidar_output.txt"])
         number_of_points = 121
         self.ekf_points = self.read_file(np.zeros((number_of_points, 6)), ekf_output_filepath)
-        self.gt_points = self.read_file(np.zeros((number_of_points, 4)), ground_truth_filepath)
+        self.gt_points = self.read_file(np.zeros((number_of_points, 5)), ground_truth_filepath)
         self.lidar_points = self.read_file(np.zeros((number_of_points, 2)), lidar_output_filepath)
 
     def read_file(self, points:np.ndarray, file_path:str) -> np.ndarray:
@@ -53,9 +53,10 @@ class DisplayOutput:
         axs[1, 0].set_xlabel("Time Steps")
         axs[1, 0].set_ylabel("Velocity (m/s)")
         axs[1, 0].set_title("EKF velocity")
-        velocity = np.linalg.norm([self.ekf_points[:,3], self.ekf_points[:,4]], axis=0)
-        axs[1, 0].plot(self.gt_points[:,3], label="Ground truth velocity")
-        axs[1, 0].plot(velocity, label="EKF velocity")
+        velocity_ekf = np.linalg.norm([self.ekf_points[:,3], self.ekf_points[:,4]], axis=0)
+        velocity_gt = np.linalg.norm([self.gt_points[:,3], self.gt_points[:,4]], axis=0)
+        axs[1, 0].plot(velocity_gt, label="Ground truth velocity")
+        axs[1, 0].plot(velocity_ekf, label="EKF velocity")
         axs[1, 0].legend(fontsize="small")
 
         # Angular velocity

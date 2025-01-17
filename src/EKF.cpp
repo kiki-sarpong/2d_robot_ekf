@@ -43,7 +43,7 @@ EKF::EKF() {
         // Initialize lidar noise matrix (R_radar)
         R_radar = Eigen::MatrixXd(3, 3);
         R_radar <<  1, 0, 0, 
-                    0, 0.1, 0, 
+                    0, 1, 0, 
                     0, 0,  1;
 
         // Initialize measurement matrices for lidar and radar
@@ -83,8 +83,10 @@ void EKF::calc_jacobian(std::string sensor){
         H_radar(0, 1) = x(1)/c2; // y/c2
         H_radar(1, 0) = -(x(1)/c1);  // -(y/c1)
         H_radar(1, 1) = x(0)/c1; // x/c1
-        H_radar(2, 0) = x(3)/c2 - (x(1) * (x(3) * x(1) - x(4) * x(0)))/c3;  // (y * (vx * y - vy * x)))/c3
-        H_radar(2, 1) = x(4)/c2 - (x(0) * (x(4) * x(0) - x(3) * x(1)))/c3;  // (x * (vy * x - vx * y)))/c3
+        // H_radar(2, 0) = x(3)/c2 - (x(1) * (x(3) * x(1) - x(4) * x(0)))/c3;  // (y * (vx * y - vy * x)))/c3
+        // H_radar(2, 1) = x(4)/c2 - (x(0) * (x(4) * x(0) - x(3) * x(1)))/c3;  // (x * (vy * x - vx * y)))/c3
+        H_radar(2, 0) = x(1) * (x(3) * x(1) - x(4) * x(0))/c3;  // (y * (vx * y - vy * x)))/c3
+        H_radar(2, 1) = x(0) * (x(4) * x(0) - x(3) * x(1))/c3;  // (x * (vy * x - vx * y)))/c3
         H_radar(2, 3) = x(0)/c2; // x/c2
         H_radar(2, 4) = x(1)/c2; // y/c2
         return;

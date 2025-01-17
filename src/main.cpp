@@ -27,10 +27,9 @@ int main(int argc, char* argv[])
     LOG(INFO) << "Number of robot positions is " << num_of_positions;
 
     // Set noise values
-    double lidar_noise = 0.4;
-    double range_noise = 0.3, azimuth_noise = 0.5, velocity_noise = 0.4;
+    double lidar_noise = 0.001; // 0.6
+    double range_noise = 0.0001, azimuth_noise = 0.0001, velocity_noise = 0.00001;
     double timestamp_noise = 5.0; // High variance in timestamps
-    // 
     std::vector<lidar> lidar_data;
     std::vector<radar> radar_data;
     std::vector<robot_vector> robot_position;
@@ -40,11 +39,11 @@ int main(int argc, char* argv[])
     sciplot::Vec x_vectors = sciplot::linspace(start_point, x_max, num_of_positions);
     
     // Initialize robot vector values
-    double theta_radians = 0.0, y = 0.0, x = 0.0, velocity = 0.0;
-    double azimuth_radians = 0.0, range = 0.0, r_velocity = 0.0;
+    double theta_radians = 0.0, y = 0.0, x = 0.0, velocity_x = 0.0, velocity_y = 0.0;
+    double azimuth_radians = 0.0, range = 0.0, radial_velocity = 0.0;
     
     // Initialize the update variable, set the constant time plus noise variable for the timestamp
-    double time_stamp_sec = 0.0, time_const_sec = 10.0;
+    double time_stamp_sec = 0.0, time_const_sec = 0.3, old_time_stamp = 0.0;
     
     // Initialize utility class
     RobotUtility robot_utlity;
@@ -67,7 +66,7 @@ int main(int argc, char* argv[])
             double& x2 = x;
             double& y2 = y;
 
-            // Get angle of robot
+            // Get angle of robot | Azimuth zeri is facing east not north, that's why I add 90 clockwise rotation
             theta_radians = (atan2((y2-y1), (x2-x1)) + M_PI/2);
             // Correct angle value is the theta_radians is less than zero
             theta_radians = (theta_radians < 0) ? theta_radians +=2*M_PI : theta_radians;
@@ -80,16 +79,24 @@ int main(int argc, char* argv[])
             azimuth_radians = theta_radians + robot_utlity.randomGaussian(0, azimuth_noise);
             azimuth_radians = std::fmod(azimuth_radians, (2*M_PI));  // azimuth is in radians and should be b/n 0 - 2PI
             // Calculate velocity
-            velocity = distance/time_stamp_sec;
-            // Calculate radar velocity
-            r_velocity = velocity + robot_utlity.randomGaussian(velocity_noise, velocity_noise/4);
+            velocity_x = (x2 - x1)/(time_stamp_sec - old_time_stamp);
+            velocity_y = (y2 - y1)/(time_stamp_sec - old_time_stamp);
+            old_time_stamp = time_stamp_sec;
+
+            // Calculate radial velocity
+            radial_velocity = (velocity_x * (x2 - x1) + velocity_y * (y2 - y1)) / distance ;
+            radial_velocity = radial_velocity + robot_utlity.randomGaussian(velocity_noise, velocity_noise / 4);
+
+            // std::cout << distance <<  " " <<theta_radians <<  " " << velocity <<  " | " << range <<  " " <<azimuth_radians <<  " " << radial_velocity << "\n";
         }
         // Save data
-        robot_position.emplace_back(robot_vector(x, y, theta_radians, velocity));  // Save the robot positions
+        robot_position.emplace_back(robot_vector(x, y, theta_radians, velocity_x, velocity_y));  // Save the robot positions
         timestamp_data.emplace_back(time_stamp_sec);     // Save the timestamps
         lidar_data.emplace_back(lidar(lidar_x, lidar_y));
-        radar_data.emplace_back(radar(range, azimuth_radians, r_velocity));
+        radar_data.emplace_back(radar(range, azimuth_radians, radial_velocity));
+        
     }
+
 
 
     // Main EKF pipeline
@@ -114,12 +121,13 @@ int main(int argc, char* argv[])
             // Calculate difference in time
             dt = timestamp_data[i] - ekf_model.timestamp_; 
         }
+        ekf_model.dt = dt;  // Assign the change in time
+        ekf_model.predict();
+
         // Lidar update
         ekf_model.z_lidar << lidar_data[i].x, lidar_data[i].y;
         // Radar update
-        ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].velocity;
-        ekf_model.dt = dt;  // Assign the change in time
-        ekf_model.predict();
+        ekf_model.z_radar << radar_data[i].range, radar_data[i].azimuth, radar_data[i].radial_velocity; 
         // "lidar" or "radar"
         ekf_model.update("lidar");
         // ekf_model.update("radar");
@@ -132,7 +140,7 @@ int main(int argc, char* argv[])
 
         // Write to file
         gt_file << robot_position[i].x << " " << robot_position[i].y << " " << robot_position[i].theta_radians << \
-                " " << robot_position[i].velocity << "\n";
+                " " << robot_position[i].velocity_x << " " << robot_position[i].velocity_y << "\n";
         
         // ekf_file << lidar_data[i].x << " " << lidar_data[i].y << " "  << ekf_model.x(2) << " " << ekf_model.x(3) \
         //         << " "  << ekf_model.x(4) << " "  << ekf_model.x(5) << "\n";
